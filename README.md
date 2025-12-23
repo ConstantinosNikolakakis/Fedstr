@@ -3,7 +3,7 @@
 **A Decentralized Marketplace for Federated Learning**
 
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Key Features](#key-features)
@@ -19,23 +19,24 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
 FEDSTR (Federated Learning on NOSTR) is a proof-of-concept implementation of a **decentralized federated learning marketplace** built on the [NOSTR protocol](https://github.com/nostr-protocol/nostr). 
 
 Unlike traditional federated learning systems that rely on centralized coordinators, FEDSTR enables:
 
-- 🔒 **Cryptographic integrity verification** - SHA-256 hash verification ensures models cannot be tampered with
-- 🌐 **True decentralization** - Communication over public NOSTR relays (no trusted servers)
+
+- 🌐 **True decentralization** - Communication over public NOSTR relays
 - ⚡ **Payment integration** - Built-in Lightning Network payment protocol (NIP-57)
-- 🔐 **Privacy-preserving** - Data never leaves participant devices
+- 🔐 **Privacy-preserving** - Encrypted coordination and message exchange 
 - 📊 **Validation** - Algorithmic detection of malicious or lazy service providers
+- 🔒 **Cryptographic integrity verification** - SHA-256 hash verification ensures models cannot be tampered
 
 **Paper:** [FEDSTR: A Decentralized Marketplace for Federated Learning on NOSTR](link-to-paper)
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 ### Protocol Implementation
 - ✅ **NIP-90 Data Vending Machines** - Job request/result protocol
@@ -50,7 +51,7 @@ Unlike traditional federated learning systems that rely on centralized coordinat
 
 ### Federated Learning
 - ✅ **FedAvg algorithm** - Classical federated averaging
-- ✅ **Validation mechanisms** - Detect malicious/lazy service providers
+- 🔄 **Validation mechanisms** - Detect malicious/lazy service providers
 - ✅ **Multi-round training** - Support for iterative model improvement
 - ✅ **Data splitting** - Automatic dataset partitioning across DVMs
 
@@ -61,7 +62,7 @@ Unlike traditional federated learning systems that rely on centralized coordinat
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -72,7 +73,7 @@ Unlike traditional federated learning systems that rely on centralized coordinat
                     WebSocket Events
                           ↑     ↓
         ┌─────────────────┴─────┴──────────────────┐
-        │                                           │
+        │                                          │
    ┌────▼────┐                               ┌─────▼─────┐
    │ Customer│                               │    DVM    │
    │(Aggregator)                             │ (Service  │
@@ -106,7 +107,7 @@ Unlike traditional federated learning systems that rely on centralized coordinat
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -250,23 +251,23 @@ cd ../../..
 
 ### Run A Federated Learning Session
 
-# Terminal 0 - File Server
+**Terminal 0 - File Server**
 
 ```bash
 python python/file_server.py --port 8000
 ```
 
-# Terminal 1 - Start DVM 0
+**Terminal 1 - Start DVM 0**
 ```bash
 ./target/release/dvm --id 0 --storage http://localhost:8000
 ```
 
-# Terminal 2 - Start DVM 1
+**Terminal 2 - Start DVM 1**
 ```bash
 ./target/release/dvm --id 1 --storage http://localhost:8000
 ```
 
-# Terminal 3 - Run Customer (Coordinator)
+**Terminal 3 - Run Customer (Coordinator)**
 ```bash
 ./target/release/customer \
   --num-dvms 2 \
@@ -304,7 +305,7 @@ Or
 
 ---
 
-## 📖 Usage Examples
+## Usage Examples
 
 ### Basic Training (2 DVMs, 3 Rounds)
 
@@ -322,39 +323,10 @@ Or
   --dvms npub1wx3863kca6k2lmgm24qm6c303z28xa5f20kw23mp3nn8wzyahqmqaycgkq,npub1ll2xc6kwwllsuuwwzw8s05589m3rjdk2upvzn2ve5l9m0jgnke7sxnddsr
 ```
 
-### Custom Dataset
-
-```bash
-./target/release/customer \
-  --num-dvms 3 \
-  --rounds 5 \
-  --dataset fashion-mnist \
-  --dvms npub1...,npub2...,npub3...
-```
-
-### Custom Model Storage
-
-```bash
-# Local path
-./target/release/dvm --id 0 --storage /my/custom/path
-
-# HTTP server
-./target/release/dvm --id 0 --storage http://my-server:8081
-
-# Blossom (future)
-./target/release/dvm --id 0 --storage blossom
-```
-
-### Custom Relays
-
-```bash
-./target/release/dvm --id 0 \
-  --relays wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band
-```
 
 ---
 
-## 🔧 How It Works
+## How It Works
 
 ### 1. Customer Publishes JobRequest (Kind 8000)
 
@@ -434,7 +406,7 @@ if validate_output(model, validation_dataset) {
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 fedstr-poc/
@@ -469,7 +441,7 @@ fedstr-poc/
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -520,7 +492,7 @@ Options:
 
 ---
 
-## 🛠 Development
+## Development
 
 ### Build from Source
 
@@ -569,7 +541,7 @@ black python/
 
 ---
 
-## 🔐 Security
+## Security
 
 ### Cryptographic Guarantees
 
@@ -623,7 +595,7 @@ For robust detection of lazy or malicious DVMs, the customer (aggregator) should
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -667,7 +639,7 @@ pip install torch torchvision --force-reinstall
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 - **Paper:** [FEDSTR: A Decentralized Marketplace for Federated Learning on NOSTR](link-to-paper)
 - **NOSTR Protocol:** [github.com/nostr-protocol/nostr](https://github.com/nostr-protocol/nostr)
@@ -684,9 +656,39 @@ pip install torch torchvision --force-reinstall
 - 📱 **UX:** Web/mobile client development
 - 📊 **ML:** Support for more algorithms (DiLoCo, SecAgg, etc.)
 
+### Custom Dataset
+
+```bash
+./target/release/customer \
+  --num-dvms 3 \
+  --rounds 5 \
+  --dataset fashion-mnist \
+  --dvms npub1...,npub2...,npub3...
+```
+
+### Custom Model Storage
+
+```bash
+# Local path
+./target/release/dvm --id 0 --storage /my/custom/path
+
+# HTTP server
+./target/release/dvm --id 0 --storage http://my-server:8081
+
+# Blossom (future)
+./target/release/dvm --id 0 --storage blossom
+```
+
+### Custom Relays
+
+```bash
+./target/release/dvm --id 0 \
+  --relays wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band
+```
+
 ---
 
-## 📄 Citation
+## Citation
 
 If you use FEDSTR in your research, please cite:
 
@@ -701,13 +703,13 @@ If you use FEDSTR in your research, please cite:
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👥 Authors
+## Authors
 
 - **Konstantinos E. Nikolakakis** - [KostisNikolakakis@pm.me](mailto:KostisNikolakakis@pm.me)
 - **George Chantzialexiou** - [george.chantzialexiou@gmail.com](mailto:george.chantzialexiou@gmail.com)
@@ -715,7 +717,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - NOSTR protocol developers
 - Rust community
@@ -723,7 +725,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📞 Contact
+## Contact
 
 - **Email:** KostisNikolakakis@pm.me
 - **NOSTR:** npub1... (add your npub)
