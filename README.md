@@ -624,7 +624,7 @@ pip install torch torchvision --force-reinstall
 # Use this exact npub in customer command:
 ./target/release/customer --dvms npub1wx3863...
 ```
-**Issue: MNIST download fails**
+**Issue:** `MNIST download fails`
 ```bash
 # Manual download (if needed)
 mkdir -p data/MNIST/raw
