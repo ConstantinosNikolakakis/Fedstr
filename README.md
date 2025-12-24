@@ -32,7 +32,7 @@ Unlike traditional federated learning systems that rely on centralized coordinat
 - 📊 **Validation** - Algorithmic detection of malicious or lazy service providers
 - 🔒 **Cryptographic integrity verification** - SHA-256 hash verification ensures models cannot be tampered
 
-**Paper:** [FEDSTR: A Decentralized Marketplace for Federated Learning on NOSTR](link-to-paper)
+**Paper:** [FEDSTR: A Decentralized Marketplace for Federated Learning on NOSTR](https://arxiv.org/abs/2404.15834)
 
 ---
 
@@ -422,9 +422,7 @@ fedstr-poc/
 ├── build.rs                     # Cargo build script (PyO3 configuration)
 ├── Cargo.lock                   # Locked dependency versions
 ├── file_server.py               # HTTP model storage server (for testing)
-├── README.md                # This file
-└── paper/
-    └── FEDSTR_paper.pdf     # Research paper
+└── README.md                # This file
 ```
 
 ---
@@ -639,7 +637,7 @@ cd ../../..
 
 ## Documentation
 
-- **Paper:** [FEDSTR: A Decentralized Marketplace for Federated Learning on NOSTR](link-to-paper)
+- **Paper:** [FEDSTR: A Decentralized Marketplace for Federated Learning on NOSTR](https://arxiv.org/abs/2404.15834)
 - **NOSTR Protocol:** [github.com/nostr-protocol/nostr](https://github.com/nostr-protocol/nostr)
 - **NIP-90 (Data Vending Machines):** [NIP-90 Spec](https://github.com/nostr-protocol/nips/blob/master/90.md)
 - **NIP-57 (Lightning Payments):** [NIP-57 Spec](https://github.com/nostr-protocol/nips/blob/master/57.md)
@@ -694,7 +692,7 @@ If you use FEDSTR in your research, please cite:
 @article{nikolakakis2024fedstr,
   title={FEDSTR: A Decentralized Marketplace for Federated Learning on NOSTR},
   author={Nikolakakis, Konstantinos E. and Chantzialexiou, George and Kalogerias, Dionysis},
-  journal={arXiv preprint arXiv:XXXX.XXXXX},
+  journal={arXiv preprint arXiv:2404.15834},
   year={2024}
 }
 ```
@@ -725,9 +723,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-- **Email:** KostisNikolakakis@pm.me
-- **NOSTR:** npub1... (add your npub)
-
+- **Email:** KostisNikolakakis@pm.me, Konstantinos.Nikolakakis@ses.ai
 ---
 
 **Built with ❤️ for decentralized AI**
