@@ -47,7 +47,7 @@ Unlike traditional federated learning systems that rely on centralized coordinat
 ### Cryptographic Security
 - ✅ **SHA-256 model integrity** - Every model exchange is hash-verified
 - ✅ **Schnorr signatures** - All events cryptographically signed
-- ✅ **Zero tampering** - 100% hash verification success in testing 
+- ✅ **Zero tampering** - Through hash verification  
 
 ### Federated Learning
 - ✅ **FedAvg algorithm** - Classical federated averaging
