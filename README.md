@@ -1,7 +1,7 @@
 # FEDSTR: Federated Learning on the NOSTR
 
-**A Decentralized Marketplace for Federated Learning**
-
+**Money-In AI-Out | A Decentralized Marketplace for Federated Learning and LLM Training on the NOSTR Protocol**
+**Paper:** [FEDSTR](https://arxiv.org/abs/2404.15834)
 
 ## Table of Contents
 
@@ -26,13 +26,11 @@ FEDSTR (Federated Learning on NOSTR) is a proof-of-concept implementation of a *
 Unlike traditional federated learning systems that rely on centralized coordinators, FEDSTR enables:
 
 
-- 🌐 **True decentralization** - Communication over public NOSTR relays
-- ⚡ **Payment integration** - Built-in Lightning Network payment protocol (NIP-57)
-- 🔐 **Privacy-preserving** - Encrypted coordination and message exchange 
-- 📊 **Validation** - Algorithmic detection of malicious or lazy service providers
-- 🔒 **Cryptographic integrity verification** - SHA-256 hash verification ensures models cannot be tampered
-
-**Paper:** [FEDSTR: A Decentralized Marketplace for Federated Learning on NOSTR](https://arxiv.org/abs/2404.15834)
+-  **True decentralization** - Communication over public NOSTR relays
+-  **Payment integration** - Built-in Lightning Network payment protocol (NIP-57)
+-  **Privacy-preserving** - Encrypted coordination and message exchange 
+-  **Validation** - Algorithmic detection of malicious or lazy service providers
+-  **Cryptographic integrity verification** - SHA-256 hash verification ensures models cannot be tampered
 
 ---
 
