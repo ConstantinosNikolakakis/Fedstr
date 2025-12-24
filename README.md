@@ -237,18 +237,6 @@ which python
 python -c "import torch; print(torch.__version__)"
 ```
 
-**Issue: MNIST download fails**
-```bash
-# Manual download (if needed)
-mkdir -p data/MNIST/raw
-cd data/MNIST/raw
-wget http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz
-wget http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz
-wget http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz
-wget http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz
-cd ../../..
-```
-
 ### Run A Federated Learning Session
 
 **Terminal 0 - File Server**
@@ -636,7 +624,17 @@ pip install torch torchvision --force-reinstall
 # Use this exact npub in customer command:
 ./target/release/customer --dvms npub1wx3863...
 ```
-
+**Issue: MNIST download fails**
+```bash
+# Manual download (if needed)
+mkdir -p data/MNIST/raw
+cd data/MNIST/raw
+wget http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz
+wget http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz
+wget http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz
+wget http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz
+cd ../../..
+```
 ---
 
 ## Documentation
@@ -649,7 +647,7 @@ pip install torch torchvision --force-reinstall
 
 ---
 
-### Future Work
+## Future Work
 
 - ⚡ **Payments:** Full Lightning Network integration
 - 🌐 **Storage:** Blossom/IPFS integration
