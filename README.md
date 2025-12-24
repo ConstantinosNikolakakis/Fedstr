@@ -1,6 +1,7 @@
-# FEDSTR: Federated Learning on the NOSTR
+# FEDSTR
 
-**Money-In AI-Out | A Decentralized Marketplace for Federated Learning and LLM Training on the NOSTR Protocol**
+**Money-In AI-Out | A Decentralized Marketplace for Federated Learning and LLM Training on the NOSTR**
+
 **Paper:** [FEDSTR](https://arxiv.org/abs/2404.15834)
 
 ## Table of Contents
