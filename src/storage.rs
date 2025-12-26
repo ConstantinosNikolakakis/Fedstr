@@ -31,13 +31,22 @@ pub struct UploadResponse {
 pub struct ModelStorage {
     backend: StorageBackend,
     client: reqwest::Client,
+    auth_token: Option<String>,
 }
 
 impl ModelStorage {
     /// Create new storage instance
     pub fn new(backend: StorageBackend) -> Self {
-        Self {
+        // Try to get auth token from environment
+        let auth_token = std::env::var("FEDSTR_AUTH_TOKEN").ok();
+        
+        if auth_token.is_some() && matches!(backend, StorageBackend::HttpServer(_)) {
+            println!("🔐 Using authentication token for HTTP uploads");
+        }
+        
+        Self { 
             backend,
+            auth_token,
             client: reqwest::Client::new(),
         }
     }
@@ -189,52 +198,59 @@ impl ModelStorage {
     
     /// Upload to HTTP server
     async fn upload_http(
-        &self,
-        model_bytes: &[u8],
-        hash: &str,
-        server_url: &str,
-    ) -> Result<UploadResponse> {
-        println!("📤 Uploading to HTTP server: {}", server_url);
-        
-        // Create filename from hash
-        let short_hash = &hash[..12];
-        let filename = format!("model_{}.bin", short_hash);
-        
-        // PUT to server with filename in URL
-        let upload_url = format!("{}/{}", server_url.trim_end_matches('/'), filename);
-        
-        println!("  📤 Uploading to: {}", upload_url);
-        
-        // Simple PUT request with raw bytes
-        let response = self.client
-            .put(&upload_url)
-            .header("Content-Type", "application/octet-stream")
-            .body(model_bytes.to_vec())
-            .send()
-            .await?;
-        
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(eyre!("HTTP upload failed: {} - {}", status, error_text));
+            &self,
+            model_bytes: &[u8],
+            hash: &str,
+            server_url: &str,
+        ) -> Result<UploadResponse> {
+            println!("📤 Uploading to HTTP server: {}", server_url);
+            
+            // Create filename from hash
+            let short_hash = &hash[..12];
+            let filename = format!("model_{}.bin", short_hash);
+            
+            // PUT to server with filename in URL
+            let upload_url = format!("{}/{}", server_url.trim_end_matches('/'), filename);
+            
+            println!("  📤 Uploading to: {}", upload_url);
+            
+            // Simple PUT request with raw bytes
+            let mut request = self.client
+                .put(&upload_url)
+                .header("Content-Type", "application/octet-stream");
+            
+            // Add authentication header if token is available
+            if let Some(token) = &self.auth_token {
+                request = request.header("Authorization", format!("Bearer {}", token));
+            }
+            
+            let response = request
+                .body(model_bytes.to_vec())
+                .send()
+                .await?;
+            
+            if !response.status().is_success() {
+                let status = response.status();
+                let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                return Err(eyre!("HTTP upload failed: {} - {}", status, error_text));
+            }
+            
+            // Parse JSON response from file_server.py
+            let result: serde_json::Value = response.json().await?;
+            let url = result.get("url")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| eyre!("No URL in server response"))?
+                .to_string();
+            
+            println!("  ✓ Uploaded to: {}", url);
+            println!("  📊 Size: {:.2} KB", model_bytes.len() as f64 / 1024.0);
+            
+            Ok(UploadResponse {
+                url,
+                hash: hash.to_string(),
+            })
         }
-        
-        // Parse JSON response from file_server.py
-        let result: serde_json::Value = response.json().await?;
-        let url = result.get("url")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| eyre!("No URL in server response"))?
-            .to_string();
-        
-        println!("  ✓ Uploaded to: {}", url);
-        println!("  📊 Size: {:.2} KB", model_bytes.len() as f64 / 1024.0);
-        
-        Ok(UploadResponse {
-            url,
-            hash: hash.to_string(),
-        })
     }
-}
 
 #[cfg(test)]
 mod tests {

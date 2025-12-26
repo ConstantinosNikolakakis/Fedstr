@@ -234,7 +234,84 @@ which python
 python -c "import torch; print(torch.__version__)"
 ```
 
-### Run A Federated Learning Session
+
+
+
+### Run with Remote HTTP Storage (Production)
+
+For production deployments with remote model storage and authentication:
+
+#### Set Environment Variables
+
+```bash
+# Storage server URL (your HTTP server endpoint)
+export FEDSTR_STORAGE_URL="https://your-server.com:8100"
+
+# Authentication token for uploads (required for HTTP storage)
+export FEDSTR_AUTH_TOKEN="your_secure_token_here"
+
+# Optional: Add to ~/.bashrc for persistence
+echo 'export FEDSTR_STORAGE_URL="https://your-server.com:8100"' >> ~/.bashrc
+echo 'export FEDSTR_AUTH_TOKEN="your_secure_token_here"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### Run Federated Learning Session
+
+**Terminal 1 - Start DVM 0:**
+```bash
+# Make sure environment variables are set
+export FEDSTR_AUTH_TOKEN="your_secure_token_here"
+
+./target/release/dvm --id 0 --storage https://your-server.com:8100
+```
+
+**Terminal 2 - Start DVM 1:**
+```bash
+# Make sure environment variables are set
+export FEDSTR_AUTH_TOKEN="your_secure_token_here"
+
+./target/release/dvm --id 1 --storage https://your-server.com:8100
+```
+
+**Terminal 3 - Run Customer (Coordinator):**
+```bash
+# Make sure environment variables are set
+export FEDSTR_AUTH_TOKEN="your_secure_token_here"
+
+# Get DVM public keys from Terminal 1 and 2 output
+# Look for: "Pubkey (npub): npub1..."
+
+./target/release/customer \
+  --num-dvms 2 \
+  --rounds 3 \
+  --storage https://your-server.com:8100 \
+  --dvms npub1xxx...,npub1yyy...
+```
+
+**Expected Output:**
+```
+🔐 Using authentication token for HTTP uploads
+📁 Using HTTP storage: https://your-server.com:8100
+✓ Connected to relays
+📤 Uploading to HTTP server: https://your-server.com:8100
+  ✓ Uploaded to: https://your-server.com:8100/model_abc123.bin
+  📊 Size: 12.34 KB
+✓ Hash verified - Model integrity confirmed! 
+✓ Validation passed 
+```
+
+**Security Notes:**
+- Authentication token is required for model uploads (PUT requests)
+- Model downloads are public (GET requests)
+- All uploads are verified with SHA-256 hash
+- Keep your `FEDSTR_AUTH_TOKEN` secure and never commit it to version control
+
+
+
+
+
+### Run A Federated Learning Session (localhost)
 
 **Terminal 0 - File Server**
 
