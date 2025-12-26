@@ -245,13 +245,13 @@ For production deployments with remote model storage and authentication:
 
 ```bash
 # Storage server URL (your HTTP server endpoint)
-export FEDSTR_STORAGE_URL="https://your-server.com:8100"
+export FEDSTR_STORAGE_URL="https://your-server.com"
 
 # Authentication token for uploads (required for HTTP storage)
 export FEDSTR_AUTH_TOKEN="your_secure_token_here"
 
 # Optional: Add to ~/.bashrc for persistence
-echo 'export FEDSTR_STORAGE_URL="https://your-server.com:8100"' >> ~/.bashrc
+echo 'export FEDSTR_STORAGE_URL="https://your-server.com"' >> ~/.bashrc
 echo 'export FEDSTR_AUTH_TOKEN="your_secure_token_here"' >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -263,7 +263,7 @@ source ~/.bashrc
 # Make sure environment variables are set
 export FEDSTR_AUTH_TOKEN="your_secure_token_here"
 
-./target/release/dvm --id 0 --storage https://your-server.com:8100
+./target/release/dvm --id 0 --storage https://your-server.com
 ```
 
 **Terminal 2 - Start DVM 1:**
@@ -271,7 +271,7 @@ export FEDSTR_AUTH_TOKEN="your_secure_token_here"
 # Make sure environment variables are set
 export FEDSTR_AUTH_TOKEN="your_secure_token_here"
 
-./target/release/dvm --id 1 --storage https://your-server.com:8100
+./target/release/dvm --id 1 --storage https://your-server.com
 ```
 
 **Terminal 3 - Run Customer (Coordinator):**
@@ -285,16 +285,16 @@ export FEDSTR_AUTH_TOKEN="your_secure_token_here"
 ./target/release/customer \
   --num-dvms 2 \
   --rounds 3 \
-  --storage https://your-server.com:8100 \
+  --storage https://your-server.com\
   --dvms npub1xxx...,npub1yyy...
 ```
 
 **Expected Output:**
 ```
 🔐 Using authentication token for HTTP uploads
-📁 Using HTTP storage: https://your-server.com:8100
+📁 Using HTTP storage: https://your-server.com
 ✓ Connected to relays
-📤 Uploading to HTTP server: https://your-server.com:8100
+📤 Uploading to HTTP server: https://your-server.com
   ✓ Uploaded to: https://your-server.com:8100/model_abc123.bin
   📊 Size: 12.34 KB
 ✓ Hash verified - Model integrity confirmed! 
