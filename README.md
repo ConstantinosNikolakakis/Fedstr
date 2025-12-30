@@ -1,5 +1,10 @@
 # FEDSTR: Money-In AI-Out
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Paper](https://img.shields.io/badge/arXiv-2404.15834-b31b1b.svg)](https://arxiv.org/abs/2404.15834)
+
+**Decentralized Federated Learning on NOSTR Protocol**
+
 **Paper:** [A Decentralized Marketplace for Federated Learning and LLM Training on the NOSTR Protocol](https://arxiv.org/abs/2404.15834)
 
 ## Table of Contents
