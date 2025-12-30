@@ -157,8 +157,8 @@ source ~/.bashrc  # or source ~/.zshrc for macOS
 
 #### Step 3: Clone Repository
 ```bash
-git clone https://github.com/yourusername/fedstr-poc
-cd fedstr-poc
+git clone https://github.com/ConstantinosNikolakakis/Fedstr.git
+cd Fedstr
 ```
 
 #### Step 4: Setup Python Environment
