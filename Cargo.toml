@@ -1,8 +1,11 @@
 [package]
-name = "fedstr-poc"
+name = "Fedstr"
 version = "0.1.0"
 edition = "2021"
 authors = ["Konstantinos Nikolakakis"]
+license = "MIT"
+authors = ["Konstantinos Nikolakakis <admin@knikolakakis.com>"]
+description = "Decentralized federated learning on NOSTR protocol"
 
 [dependencies]
 # Async & Runtime
