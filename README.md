@@ -808,6 +808,8 @@ If you use FEDSTR in your research, please cite:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+**Commercial use is welcomed and encouraged.** We believe open protocols drive innovation. If you build something with FEDSTR, we'd love to hear about it!
+
 ---
 
 ## Authors
