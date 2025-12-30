@@ -7,6 +7,8 @@
 
 **Paper:** [A Decentralized Marketplace for Federated Learning and LLM Training on the NOSTR Protocol](https://arxiv.org/abs/2404.15834)
 
+**Status:** Proof-of-concept implementation with production deployment capabilities. Production-ready infrastructure at `wss://relay.knikolakakis.com` and `https://storage.knikolakakis.com`.
+
 ## Table of Contents
 
 - [Overview](#overview)
