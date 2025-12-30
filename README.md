@@ -234,7 +234,20 @@ which python
 python -c "import torch; print(torch.__version__)"
 ```
 
+### Adding Relay URLs
 
+To use your own NOSTR relay or add backup relays, modify the `--relays` argument when running the binaries, or edit the default values in the code:
+
+**In `customer.rs` and `dvm.rs`**:
+```rust
+#[arg(long, default_values_t = vec![
+    "wss://relay.knikolakakis.com".to_string(),  // Your personal relay
+    "wss://relay.damus.io".to_string(),          // Optional: Public backup
+])]
+relays: Vec<String>,
+```
+
+The system will publish and subscribe to all listed relays for redundancy. 
 
 
 ### Run with Remote HTTP Storage (Production)
