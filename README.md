@@ -313,6 +313,8 @@ export FEDSTR_AUTH_TOKEN="your_secure_token_here"
 
 ### Run A Federated Learning Session (localhost)
 
+Local storage for the model checkpoints only, coordination still runs on relays
+
 **Terminal 0 - File Server**
 
 ```bash
