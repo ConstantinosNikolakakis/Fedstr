@@ -48,7 +48,7 @@ Unlike traditional federated learning systems that rely on centralized coordinat
 
 ### Federated Learning
 - ✅ **FedAvg algorithm** - Classical federated averaging
-- 🔄 **Validation mechanisms** - Detect malicious/lazy service providers
+- ✅ **Validation mechanisms** - Detect malicious/lazy service providers (with simplified rules)
 - ✅ **Multi-round training** - Support for iterative model improvement
 - ✅ **Data splitting** - Automatic dataset partitioning across DVMs
 
