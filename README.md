@@ -829,6 +829,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Contact
 
 - **Email:** KostisNikolakakis@pm.me, Konstantinos.Nikolakakis@ses.ai
+- **Website:** [knikolakakis.com](https://knikolakakis.com)
 ---
 
 **Built with ❤️ for decentralized AI**
