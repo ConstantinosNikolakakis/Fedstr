@@ -623,7 +623,7 @@ black python/
 
 ⚠️ **Sybil Attacks:** No reputation system (future work)  
 ⚠️ **Data Poisoning:** No defense against malicious training data  
-⚠️ **Payment Security:** Dummy implementation
+⚠️ **Payments:** Dummy implementation
 
 
 ### Validation and Lazy DVM Detection
