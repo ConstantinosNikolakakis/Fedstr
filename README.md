@@ -177,17 +177,15 @@ python -c "import torch; print(f'PyTorch {torch.__version__} installed')"
 ### Step 5: Set Environment Variables
 
 ```bash
-# Set CONDA_PREFIX for Rust build
+# Set CONDA_PREFIX
 export CONDA_PREFIX=$HOME/miniconda3/envs/fedstr
 
-# Platform-specific library path configuration
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    export DYLD_FALLBACK_LIBRARY_PATH="$CONDA_PREFIX/lib:$DYLD_FALLBACK_LIBRARY_PATH"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # Linux
-    export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
-fi
+# Platform-specific library path
+# Linux:
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+
+# macOS:
+export DYLD_FALLBACK_LIBRARY_PATH="$CONDA_PREFIX/lib:$DYLD_FALLBACK_LIBRARY_PATH"
 
 # Add to your shell config for persistence
 echo "export CONDA_PREFIX=$HOME/miniconda3/envs/fedstr" >> ~/.bashrc
