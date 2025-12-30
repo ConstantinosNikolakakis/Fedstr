@@ -38,6 +38,15 @@ Unlike traditional federated learning systems that rely on centralized coordinat
 -  **Validation** - Algorithmic detection of malicious or lazy service providers
 -  **Cryptographic integrity verification** - SHA-256 hash verification ensures models cannot be tampered
 
+### Why FEDSTR?
+
+**Problem:** Traditional federated learning requires trusted centralized coordinators, creating single points of failure and vendor lock-in.
+
+**Solution:** FEDSTR uses NOSTR's decentralized relay network for coordination, enabling:
+- No single point of failure
+- Censorship resistance
+- Economic incentives via Bitcoin/Lightning
+- Open protocol anyone can build on
 ---
 
 ## Key Features
