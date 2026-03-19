@@ -1,0 +1,10 @@
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+COPY file_server.py .
+
+RUN mkdir -p /data/models
+
+EXPOSE 8000
+
+CMD ["python3", "file_server.py", "--port", "8000", "--dir", "/data/models"]

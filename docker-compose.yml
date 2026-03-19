@@ -1,0 +1,136 @@
+version: "3.9"
+
+# FEDSTR docker-compose
+#
+# QUICK START (local storage):
+#   cp .env.example .env && docker compose --profile local up
+#
+# REMOTE STORAGE (storage.knikolakakis.com):
+#   Set STORAGE_URL and STORAGE_AUTH_TOKEN in .env
+#   docker compose up   (no --profile local needed)
+#
+# 4 DVMs:
+#   COMPOSE_PROFILES=dvm4 docker compose --profile local up
+
+services:
+
+  # Local storage server — only starts with --profile local
+  storage:
+    build:
+      context: .
+      dockerfile: Dockerfile.storage
+    profiles: ["local"]
+    ports:
+      - "${STORAGE_PORT:-8000}:8000"
+    volumes:
+      - model_data:/data/models
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # DVM 0 — always started
+  dvm-0:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
+    volumes:
+      - model_data:/tmp/fedstr_models
+    command: >
+      fedstr-dvm
+        --id 0
+        --keypair-hex ${DVM_0_NSEC_HEX}
+        --relays ${NOSTR_RELAY:-wss://relay.knikolakakis.com}
+        --storage ${STORAGE_URL:-http://storage:8000}
+    restart: unless-stopped
+
+  # DVM 1 — always started
+  dvm-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
+    volumes:
+      - model_data:/tmp/fedstr_models
+    command: >
+      fedstr-dvm
+        --id 1
+        --keypair-hex ${DVM_1_NSEC_HEX}
+        --relays ${NOSTR_RELAY:-wss://relay.knikolakakis.com}
+        --storage ${STORAGE_URL:-http://storage:8000}
+    restart: unless-stopped
+
+  # DVM 2 — enabled via profile dvm3 or dvm4
+  dvm-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["dvm3", "dvm4"]
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
+    volumes:
+      - model_data:/tmp/fedstr_models
+    command: >
+      fedstr-dvm
+        --id 2
+        --keypair-hex ${DVM_2_NSEC_HEX}
+        --relays ${NOSTR_RELAY:-wss://relay.knikolakakis.com}
+        --storage ${STORAGE_URL:-http://storage:8000}
+    restart: unless-stopped
+
+  # DVM 3 — enabled via profile dvm4
+  dvm-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["dvm4"]
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
+    volumes:
+      - model_data:/tmp/fedstr_models
+    command: >
+      fedstr-dvm
+        --id 3
+        --keypair-hex ${DVM_3_NSEC_HEX}
+        --relays ${NOSTR_RELAY:-wss://relay.knikolakakis.com}
+        --storage ${STORAGE_URL:-http://storage:8000}
+    restart: unless-stopped
+
+  # Customer — knows DVM npubs from .env, no log-scraping needed
+  customer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - dvm-0
+      - dvm-1
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
+    volumes:
+      - model_data:/tmp/fedstr_models
+    command:
+      - sh
+      - -c
+      - >
+        sleep ${CUSTOMER_WAIT:-15} &&
+        fedstr-customer
+        --num-dvms ${NUM_DVMS:-2}
+        --rounds ${ROUNDS:-3}
+        --epochs ${EPOCHS_PER_ROUND:-3}
+        --batch-size ${BATCH_SIZE:-32}
+        --relays ${NOSTR_RELAY:-wss://relay.knikolakakis.com}
+        --storage ${STORAGE_URL:-http://storage:8000}
+    restart: "no"
+
+volumes:
+  model_data:

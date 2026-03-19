@@ -17,7 +17,7 @@ use fedstr_poc::{
     ModelStorage, StorageBackend,
 };
 
-use nostr::{Keys, Kind, Filter, Timestamp, prelude::*};
+use nostr::{Keys, Kind, Filter, Timestamp, SingleLetterTag, Alphabet, prelude::*};
 use nostr_sdk::Client;
 use color_eyre::eyre::{Result, eyre};
 use std::time::Duration;
@@ -60,6 +60,10 @@ struct Args {
     #[arg(long)]
     dvms: Option<String>,
 
+    /// How long to poll relay for DVMs during auto-discovery, in seconds.
+    #[arg(long, default_value = "60")]
+    discovery_timeout: u64,
+
     /// Storage backend to use (local, http://..., or custom path)
     #[arg(long, default_value = "local")]
     storage: String,
@@ -67,8 +71,9 @@ struct Args {
     /// Relays to connect to
     #[arg(long, default_values_t = vec![
     //"ws://localhost:8080".to_string(),
-    "wss://nos.lol".to_string(),
+    //"wss://nos.lol".to_string(),
     //"wss://relay.nostr.band".to_string(),
+    "wss://relay.knikolakakis.com".to_string()
     ])]
     relays: Vec<String>,
 }
@@ -147,13 +152,13 @@ impl Customer {
         println!("  Epochs/round: {}", args.epochs);
         println!("  Batch size:   {}", args.batch_size);
         
-        // Parse DVM pubkeys or discover them
+        // Resolve DVM pubkeys: explicit list OR relay auto-discovery
         let dvm_pubkeys = if let Some(dvms_str) = &args.dvms {
+            println!("\n[OK] Using manually specified DVMs.");
             self.parse_dvm_pubkeys(dvms_str)?
         } else {
-            println!("\n⚠️  No DVMs specified. Please provide --dvms with pubkeys.");
-            println!("Example: --dvms npub1...,npub2...");
-            return Err(eyre!("No DVMs specified"));
+            println!("\n[SEARCH] No --dvms provided -- discovering DVMs via relay (kind 31990)...");
+            self.discover_dvms(args.num_dvms, args.discovery_timeout).await?
         };
         
         if dvm_pubkeys.len() != args.num_dvms {
@@ -531,15 +536,18 @@ impl Customer {
                 last_progress = std::time::Instant::now();
             }
             
-            // Query for JobResult events
+            // Query for JobResult events from our specific DVMs only.
+            // Use a short relay timeout so we re-poll on each loop iteration
+            // rather than holding one long subscription that the relay closes.
             let filter = Filter::new()
                 .kind(Kind::Custom(6000))
+                .authors(dvm_pubkeys.to_vec())
                 .since(since);
             
             let events = self.client.get_events_of(
                 vec![filter],
-                nostr_sdk::EventSource::relays(None),
-            ).await?;
+                nostr_sdk::EventSource::relays(Some(Duration::from_secs(10))),
+            ).await.unwrap_or_default();
             
             for event in events {
                 // Parse JobResult
@@ -575,6 +583,104 @@ impl Customer {
         Ok(results)
     }
     
+    /// Auto-discover available DVMs via relay (kind 31990, NIP-89).
+    ///
+    /// Polls the relay for discoverability events tagged with k=8000
+    /// (FEDSTR federated learning jobs). Returns exactly `num_dvms`
+    /// pubkeys once found, or errors if the timeout elapses first.
+    ///
+    /// This replaces the need to pass --dvms manually or to grep DVM logs.
+    async fn discover_dvms(&self, num_dvms: usize, timeout_secs: u64) -> Result<Vec<PublicKey>> {
+        use std::collections::HashSet;
+
+        let timeout    = Duration::from_secs(timeout_secs);
+        let poll_every = Duration::from_secs(3);
+        let start      = std::time::Instant::now();
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut found: Vec<PublicKey> = Vec::new();
+
+        println!("  Polling relay every {}s (timeout {}s) ...", poll_every.as_secs(), timeout_secs);
+
+        // Only consider announcements from the last 5 minutes.
+        // Prevents picking up stale events from previous runs on the relay.
+        let recent_cutoff = Timestamp::now() - 300u64;
+
+        while start.elapsed() < timeout {
+            // Filter: kind 31990 + k=8000 + recent only
+            let filter = Filter::new()
+                .kind(Kind::Custom(31990))
+                .custom_tag(
+                    SingleLetterTag::lowercase(Alphabet::K),
+                    vec!["8000"],
+                )
+                .since(recent_cutoff);
+
+            let mut events = self
+                .client
+                .get_events_of(
+                    vec![filter],
+                    nostr_sdk::EventSource::relays(Some(Duration::from_secs(5))),
+                )
+                .await
+                .unwrap_or_default();
+
+            // Sort newest-first: prefer most recently announced DVM
+            events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+            for event in &events {
+                let pk_hex = event.pubkey.to_string();
+                if !seen.contains(&pk_hex) {
+                    seen.insert(pk_hex.clone());
+                    found.push(event.pubkey);
+
+                    let name = serde_json::from_str::<serde_json::Value>(&event.content)
+                        .ok()
+                        .and_then(|v| v["name"].as_str().map(|s| s.to_string()))
+                        .unwrap_or_else(|| "unnamed".to_string());
+
+                    let age_secs = Timestamp::now().as_u64()
+                        .saturating_sub(event.created_at.as_u64());
+
+                    println!(
+                        "  [+] DVM {}/{}: {} | {} ({}s ago)",
+                        found.len(), num_dvms, name,
+                        event.pubkey.to_bech32().unwrap_or(pk_hex),
+                        age_secs,
+                    );
+                }
+            }
+
+            if found.len() >= num_dvms {
+                found.truncate(num_dvms);
+                println!(
+                    "  [OK] Discovery complete: {}/{} DVMs in {:.1}s",
+                    num_dvms,
+                    num_dvms,
+                    start.elapsed().as_secs_f32()
+                );
+                return Ok(found);
+            }
+
+            let remaining = timeout_secs.saturating_sub(start.elapsed().as_secs());
+            println!(
+                "  [{}/{}] found so far — {}s remaining ...",
+                found.len(),
+                num_dvms,
+                remaining
+            );
+            tokio::time::sleep(poll_every).await;
+        }
+
+        Err(eyre!(
+            "DVM discovery timed out after {}s: found only {}/{} DVMs.\n\
+             Make sure DVMs are running and connected to the same relay.\n\
+             Alternatively, pass pubkeys directly with: --dvms npub1...,npub2,...",
+            timeout_secs,
+            found.len(),
+            num_dvms
+        ))
+    }
+
     /// Parse DVM pubkeys from comma-separated string
     fn parse_dvm_pubkeys(&self, dvms_str: &str) -> Result<Vec<PublicKey>> {
         dvms_str.split(',')

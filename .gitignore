@@ -173,3 +173,4 @@ tree.txt
 # Weird directory artifacts (from tree output)
 src/{protocol,actors,ml,storage}
 
+!.env.example

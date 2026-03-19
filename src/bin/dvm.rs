@@ -34,15 +34,21 @@ struct Args {
     #[arg(short, long, default_value = "0")]
     id: usize,
     
-    /// Path to keypair file (optional, generates new if not provided)
-    #[arg(short, long)]
-    keypair: Option<String>,
+    /// Hex-encoded 32-byte secret key. Set via env var DVM_NSEC_HEX in docker-compose.
+    /// If omitted, an ephemeral key is generated (customer must pass npub manually).
+    #[arg(long, env = "DVM_NSEC_HEX")]
+    keypair_hex: Option<String>,
+
+    /// Print the npub derived from --keypair-hex and exit (used by derive_npubs.sh).
+    #[arg(long, default_value_t = false)]
+    print_pubkey: bool,
     
     /// Relays to connect to
     #[arg(long, default_values_t = vec![
     //"ws://localhost:8080".to_string(),
-    "wss://nos.lol".to_string(),
+    //"wss://nos.lol".to_string(),
     //"wss://relay.nostr.band".to_string(),
+    "wss://relay.knikolakakis.com".to_string()
     ])]
     relays: Vec<String>,
     
@@ -63,13 +69,15 @@ struct ServiceProvider {
 
 impl ServiceProvider {
     /// Create a new service provider
-    async fn new(id: usize, keypair_path: Option<String>, storage_arg: String) -> Result<Self> {
+    async fn new(id: usize, keypair_hex: Option<String>, storage_arg: String) -> Result<Self> {
         // Load or generate keys
-        let keys = if let Some(_path) = keypair_path {
-            // TODO: Load from file
-            println!("⚠ Keypair loading not implemented yet, generating new keys");
-            Keys::generate()
+        let keys = if let Some(hex) = keypair_hex {
+            let secret = nostr::SecretKey::from_hex(&hex)
+                .map_err(|e| color_eyre::eyre::eyre!("Invalid --keypair-hex: {}", e))?;
+            Keys::new(secret)
         } else {
+            println!("⚠  No --keypair-hex provided. Generating ephemeral key.");
+            println!("   Pass this DVM npub to customer manually, or set DVM_NSEC_HEX.");
             Keys::generate()
         };
         
@@ -428,7 +436,21 @@ async fn main() -> Result<()> {
     println!("╚═══════════════════════════════════════╝\n");
     
     // Create and start DVM
-    let mut dvm = ServiceProvider::new(args.id, args.keypair, args.storage).await?;
+    // --print-pubkey: derive npub from key and exit (used by derive_npubs.sh)
+    if args.print_pubkey {
+        if let Some(ref hex) = args.keypair_hex {
+            let secret = nostr::SecretKey::from_hex(hex)
+                .map_err(|e| color_eyre::eyre::eyre!("Invalid --keypair-hex: {}", e))?;
+            let keys = Keys::new(secret);
+            println!("{}", keys.public_key().to_bech32()?);
+        } else {
+            eprintln!("ERROR: --print-pubkey requires --keypair-hex or DVM_NSEC_HEX");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
+    let mut dvm = ServiceProvider::new(args.id, args.keypair_hex, args.storage).await?;
     dvm.start(args.relays).await?;
     
     Ok(())
