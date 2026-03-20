@@ -91,10 +91,10 @@ t=30s   Customer starts, polls relay for kind 31990 events
 t=30s   Customer discovers DVMs automatically (no --dvms flag needed)
 t=31s   Customer publishes kind 8000 JobRequests to each DVM
 t=31s   DVMs receive jobs, send payment requests (dummy), start training
-t=~8m   DVMs complete training, upload models to storage server
-t=~8m   DVMs publish kind 6000 JobResults with model URLs + SHA-256 hashes
-t=~8m   Customer downloads models, verifies hashes, runs FedAvg aggregation
-t=~8m   Customer uploads aggregated model, starts next round
+t=~1m   DVMs complete training, upload models to storage server
+t=~1m   DVMs publish kind 6000 JobResults with model URLs + SHA-256 hashes
+t=~1m   Customer downloads models, verifies hashes, runs FedAvg aggregation
+t=~1m   Customer uploads aggregated model, starts next round
         ... repeats for N rounds ...
 t=done  Customer prints final accuracy, exits with code 0
 ```
@@ -222,9 +222,8 @@ Fedstr/
 |---------|--------|----------|
 | Setup | Manual (cargo build, conda) | `./setup.sh` + Docker |
 | DVM discovery | Manual `--dvms npub1...` | Automatic via relay |
-| Storage | Local filesystem | Local container or remote HTTP |
 | DVM identity | Ephemeral (new key each run) | Persistent via `--keypair-hex` |
-| Multi-machine | Manual coordination | Same compose, change relay URL |
+| Multi-machine | Manual coordination | Same compose |
 
 ---
 
