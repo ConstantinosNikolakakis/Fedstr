@@ -9,7 +9,7 @@
 
 **Status:** Proof-of-concept implementation with production deployment capabilities. Tested on public relays and production-ready infrastructure at `wss://relay.knikolakakis.com` and `https://storage.knikolakakis.com`.
 
-**Branches:** you are on `main`.
+> **Branches:** you are on `main`.
 > For a one-command Docker experience with automatic DVM discovery and remote/local storage, see the [`docker` branch](https://github.com/ConstantinosNikolakakis/Fedstr/tree/docker).
 
 ## Table of Contents
