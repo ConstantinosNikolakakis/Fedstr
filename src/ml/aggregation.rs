@@ -152,11 +152,14 @@ def aggregate_models(model_params_b64_list, sample_counts):
         Base64-encoded aggregated model
     """
     # Decode all models
+    import torch
+    import io
+    import base64
     models = []
     for params_b64 in model_params_b64_list:
         params_bytes = base64.b64decode(params_b64)
         buffer = io.BytesIO(params_bytes)
-        state_dict = torch.load(buffer)
+        state_dict = torch.load(buffer, weights_only=True, map_location='cpu')
         models.append(state_dict)
     
     # Calculate total samples for weighted averaging
@@ -183,8 +186,6 @@ def aggregate_models(model_params_b64_list, sample_counts):
 "#;
         
         // Execute the code
-        py.run(code, None, None)?;
-        
         // Get the aggregate_models function
         let locals = PyDict::new(py);
         py.run(code, None, Some(locals))?;

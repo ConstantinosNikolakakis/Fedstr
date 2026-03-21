@@ -106,7 +106,7 @@ def train_model(
         print("Loading initial parameters from previous round...")
         params_bytes = base64.b64decode(initial_params)
         buffer = io.BytesIO(params_bytes)
-        state_dict = torch.load(buffer, map_location=device)
+        state_dict = torch.load(buffer, weights_only=True, map_location=device)
         model.load_state_dict(state_dict)
         print("✓ Parameters loaded\n")
     
@@ -192,7 +192,7 @@ def load_and_evaluate(model_base64: str, dataset_name: str = "mnist") -> Dict:
     model = TinyLinearNet().to(device)
     model_bytes = base64.b64decode(model_base64)
     buffer = io.BytesIO(model_bytes)
-    state_dict = torch.load(buffer, map_location=device)
+    state_dict = torch.load(buffer, weights_only=True, map_location=device)
     model.load_state_dict(state_dict)
     model.eval()
     
