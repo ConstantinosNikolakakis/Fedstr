@@ -136,10 +136,6 @@ impl FedAvgAggregator {
         
         // Create Python aggregation script inline
         let code = r#"
-import torch
-import io
-import base64
-
 def aggregate_models(model_params_b64_list, sample_counts):
     """
     Weighted averaging of PyTorch model parameters.
