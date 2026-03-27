@@ -37,6 +37,7 @@ COPY --from=builder /build/target/release/dvm     /usr/local/bin/fedstr-dvm
 COPY --from=builder /build/target/release/customer /usr/local/bin/fedstr-customer
 
 COPY python/ /opt/fedstr/python/
+COPY algorithms/ /opt/fedstr/algorithms/
 ENV PYTHONPATH=/opt/fedstr/python
 
 RUN mkdir -p /tmp/fedstr_models

@@ -37,20 +37,23 @@ impl PyTorchTrainer {
     /// * `initial_params` - Optional base64-encoded initial parameters
     pub fn train_tiny_model(
         &self,
+        algorithm: &str,
         dataset: &str,
         start_idx: usize,
         end_idx: usize,
         epochs: u32,
         batch_size: u32,
         initial_params: Option<String>,
+        round_num: u32,
     ) -> Result<TrainingResult> {
         Python::with_gil(|py| {
             // Import the training module
             let sys = py.import("sys")?;
             let path = sys.getattr("path")?;
-            path.call_method1("insert", (0, "python"))?;
-            
-            let train_module = PyModule::import(py, "train_tiny")?;
+            let algo_path = format!("/opt/fedstr/algorithms/{}", algorithm);
+            path.call_method1("insert", (0, algo_path))?;
+
+            let train_module = PyModule::import(py, "train")?;
             
             // Call train_model function
             let kwargs = PyDict::new(py);
@@ -59,6 +62,7 @@ impl PyTorchTrainer {
             kwargs.set_item("end_idx", end_idx)?;
             kwargs.set_item("epochs", epochs)?;
             kwargs.set_item("batch_size", batch_size)?;
+            kwargs.set_item("round_num", round_num)?;
             
             if let Some(params) = initial_params {
                 kwargs.set_item("initial_params", params)?;
@@ -85,6 +89,11 @@ impl PyTorchTrainer {
                 size_bytes,
             );
             
+            let val_loss: f64 = result.get_item("val_loss")
+                .ok().and_then(|v| v.extract().ok()).unwrap_or(final_loss);
+            let val_perplexity: f64 = result.get_item("val_perplexity")
+                .ok().and_then(|v| v.extract().ok()).unwrap_or(final_loss.exp());
+
             // Create TrainingMetrics
             let metrics = TrainingMetrics::new(
                 final_loss,
@@ -92,6 +101,8 @@ impl PyTorchTrainer {
                 loss_history,
                 accuracy_history,
                 epochs_completed,
+                val_loss,
+                val_perplexity,
             );
             
             Ok(TrainingResult {
@@ -112,9 +123,8 @@ mod tests {
     #[ignore] // Requires Python environment
     fn test_tiny_model_training() {
         let trainer = PyTorchTrainer::new().unwrap();
-        
         let result = trainer.train_tiny_model(
-            "mnist",
+            &dataset,
             0,
             1000,  // Small subset for testing
             2,     // 2 epochs

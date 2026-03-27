@@ -1,0 +1,14 @@
+# FedAvg Algorithm Configuration
+algorithm: fedavg
+model: tiny_linear
+
+# Training parameters (can be overridden by .env)
+learning_rate: 0.01
+epochs: 3
+batch_size: 32
+
+# Dataset
+dataset: mnist
+
+# Aggregation
+aggregation: weighted_average

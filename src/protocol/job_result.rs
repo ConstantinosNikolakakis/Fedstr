@@ -94,20 +94,13 @@ impl ModelParams {
 /// Training metrics for validation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainingMetrics {
-    /// Final training loss
     pub final_loss: f64,
-    
-    /// Final training accuracy
     pub final_accuracy: f64,
-    
-    /// Loss history per epoch
     pub loss_history: Vec<f64>,
-    
-    /// Accuracy history per epoch
     pub accuracy_history: Vec<f64>,
-    
-    /// Number of epochs completed
     pub epochs_completed: u32,
+    pub val_loss: f64,           // validation loss
+    pub val_perplexity: f64,     // exp(val_loss)
 }
 
 impl JobResult {
@@ -171,6 +164,8 @@ impl TrainingMetrics {
         loss_history: Vec<f64>,
         accuracy_history: Vec<f64>,
         epochs_completed: u32,
+        val_loss: f64,
+        val_perplexity: f64,
     ) -> Self {
         Self {
             final_loss,
@@ -178,6 +173,8 @@ impl TrainingMetrics {
             loss_history,
             accuracy_history,
             epochs_completed,
+            val_loss,
+            val_perplexity,
         }
     }
     
@@ -233,6 +230,8 @@ mod tests {
             vec![0.5, 0.35, 0.25],
             vec![0.85, 0.90, 0.95],
             3,
+            0.25,   // val_loss
+            1.28,   // val_perplexity
         );
         
         assert!(metrics.has_improved(0.5, 0.1));

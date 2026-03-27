@@ -174,3 +174,17 @@ tree.txt
 src/{protocol,actors,ml,storage}
 
 !.env.example
+logs/
+
+# FEDSTR specific
+# Keep logs directory structure but not log files
+!logs/.gitkeep
+# Keep data directory structure but not dataset files  
+!data/.gitkeep
+!data/shakespeare/.gitkeep
+# Keep algorithms directory
+!algorithms/**
+# Keep setup scripts
+!setup_deploy_all.sh
+!setup_customer.sh
+!setup_dvm.sh

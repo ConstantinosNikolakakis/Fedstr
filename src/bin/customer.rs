@@ -26,6 +26,7 @@ use std::str::FromStr;
 use clap::Parser;
 use uuid::Uuid;
 use base64::{Engine as _, engine::general_purpose};
+use fedstr_poc::protocol::AlgorithmConfig;
 
 /// Command-line arguments for Customer
 #[derive(Parser, Debug)]
@@ -141,16 +142,30 @@ impl Customer {
     
     /// Main federated training loop (Algorithm 1)
     async fn run_federated_training(&self, args: Args) -> Result<()> {
+
+        // Load algorithm config — single source of truth for all training hyperparameters
+        let algorithm = std::env::var("ALGORITHM").unwrap_or_else(|_| "fedavg".to_string());
+        let algo_config = AlgorithmConfig::load_with_fallback(&algorithm);
+        // Single source of truth — override CLI args with config values
+        let dataset = algo_config.dataset.clone();
+        let model = algo_config.model.clone();
+        let epochs = args.epochs;      // keep from CLI — user sets H via .env
+        let batch_size = algo_config.batch_size;
+
         println!("\n╔═══════════════════════════════════════════════════╗");
         println!("║   FEDSTR Federated Learning Session               ║");
         println!("╚═══════════════════════════════════════════════════╝");
         println!("\nConfiguration:");
-        println!("  Dataset:      {}", args.dataset);
-        println!("  Model:        {}", args.model);
+        println!("  Algorithm:    {}", algo_config.algorithm);
+        println!("  Dataset:      {}", dataset);
+        println!("  Model:        {}", model);
         println!("  DVMs:         {}", args.num_dvms);
         println!("  Rounds:       {}", args.rounds);
-        println!("  Epochs/round: {}", args.epochs);
-        println!("  Batch size:   {}", args.batch_size);
+        println!("  Epochs/round: {}", epochs);
+        println!("  Batch size:   {}", batch_size);
+        println!("  lr_inner:     {}", algo_config.lr_inner);
+        println!("  lr_outer:     {}", algo_config.lr_outer);
+        println!("  momentum:     {}", algo_config.momentum);
         
         // Resolve DVM pubkeys: explicit list OR relay auto-discovery
         let dvm_pubkeys = if let Some(dvms_str) = &args.dvms {
@@ -175,16 +190,37 @@ impl Customer {
         
         println!("\n📊 Data Distribution:");
         for (i, split) in splits.iter().enumerate() {
-            println!("  DVM {}: samples {} - {} ({} samples)", 
-                i + 1, 
-                split.start_idx, 
-                split.end_idx,
-                split.size());
+            let start_pct = split.start_idx as f64 / self.dataset_size as f64 * 100.0;
+            let end_pct = split.end_idx as f64 / self.dataset_size as f64 * 100.0;
+            println!("  DVM {}: {:.0}%-{:.0}% of dataset ({} reference units)", 
+                i + 1, start_pct, end_pct, split.size());
         }
+        
+
+        // Setup customer training log
+        let log_dir = "/opt/fedstr/logs";
+        std::fs::create_dir_all(log_dir).ok();
+        let log_path = format!("{}/customer_training.log", log_dir);
+        let mut log_file = std::fs::File::create(&log_path)?;
+        use std::io::Write;
+        let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+
+
+        println!("  Algorithm:    {}", algo_config.algorithm);
+        println!("  Dataset:      {}", algo_config.dataset);
+        println!("  Model:        {}", algo_config.model);
+
+        writeln!(log_file, "FEDSTR DiLoCo Training Log — Customer")?;
+        writeln!(log_file, "Run started: {}", now)?;
+        writeln!(log_file, "Algorithm Config: {:?}", algo_config)?;
+        writeln!(log_file, "DVMs: {}, Rounds: {}, Inner steps (H): {}", args.num_dvms, args.rounds, epochs)?;
+        writeln!(log_file, "{}", "=".repeat(60))?;
+        writeln!(log_file, "")?;
         
         // Initialize model parameters (None for first round)
         let mut current_params: Option<String> = None;
-        let mut current_params_hash: Option<String> = None;  // 🔐 NEW: Track hash
+        let mut current_params_hash: Option<String> = None;
+        let mut current_v_t: Option<String> = None;  // DiLoCo momentum state
         let mut previous_loss: Option<f64> = None;
         
         // Bootstrap Round: Train from scratch to get initial models
@@ -194,16 +230,14 @@ impl Customer {
         println!("📝 Training from scratch to initialize models...");
         
         let bootstrap_results = self.execute_round(
-            0,  // Round 0
+            0,
             args.rounds,
             &dvm_pubkeys,
             &splits,
-            &args.dataset,
-            &args.model,
-            args.epochs,
-            args.batch_size,
-            None,  // No initial params
-            None,  // No initial hash
+            &algo_config,
+            epochs,
+            None,
+            None,
         ).await?;
         
         println!("\n📥 Received {} bootstrap results", bootstrap_results.len());
@@ -247,20 +281,24 @@ impl Customer {
             }
         }
         
-        let bootstrap_aggregated = self.aggregator.aggregate(&valid_bootstrap, &self.storage).await?;
+        let bootstrap_aggregated = self.aggregator.aggregate(
+            &valid_bootstrap, &self.storage, None, None).await?;
+
         
         // Upload bootstrap aggregated model
         println!("\n📤 Uploading bootstrap aggregated model...");
-        if let Some(ref base64_data) = bootstrap_aggregated.params_base64 {
+        if let Some(ref base64_data) = bootstrap_aggregated.theta_global.params_base64 {
             let model_bytes = base64::engine::general_purpose::STANDARD.decode(base64_data)?;
             let upload_result = self.storage.upload_model(
                 &model_bytes,
-                &bootstrap_aggregated.params_hash,
+                &bootstrap_aggregated.theta_global.params_hash,
             ).await?;
             println!("  ✓ Uploaded to: {}", upload_result.url);
             current_params = Some(upload_result.url.clone());
-            current_params_hash = Some(bootstrap_aggregated.params_hash.clone());  // 🔐 Store hash!
-            println!("  🔐 Stored hash for next round: {}", bootstrap_aggregated.params_hash);
+            current_v_t = bootstrap_aggregated.v_t.as_ref()
+                .and_then(|vt| vt.params_url.clone());
+            current_params_hash = Some(bootstrap_aggregated.theta_global.params_hash.clone());  // 🔐 Store hash!
+            println!("  🔐 Stored hash for next round: {}", bootstrap_aggregated.theta_global.params_hash);
         } else {
             println!("  ⚠️  WARNING: Bootstrap aggregated model has no base64 data!");
         }
@@ -273,10 +311,20 @@ impl Customer {
             .map(|r| r.metrics.final_accuracy)
             .sum::<f64>() / valid_bootstrap.len() as f64;
         
+        let avg_val_loss: f64 = valid_bootstrap.iter()
+            .map(|r| r.metrics.val_loss)
+            .sum::<f64>() / valid_bootstrap.len() as f64;
+        let avg_val_ppl = avg_val_loss.exp();
+
         println!("\n📊 Bootstrap Results:");
-        println!("  Average Loss:     {:.4}", avg_loss);
-        println!("  Average Accuracy: {:.2}%", avg_accuracy);
-        
+        println!("  Average Train Loss:  {:.4}", avg_loss);
+        println!("  Average Val Loss:    {:.4}", avg_val_loss);
+        println!("  Average Val PPL:     {:.4}", avg_val_ppl);
+
+        writeln!(log_file, "Bootstrap Round:")?;
+        writeln!(log_file, "  {:>6}  {:>10}  {:>10}  {:>12}", "Round", "Train Loss", "Val Loss", "Val PPL")?;
+        writeln!(log_file, "  {:>6}  {:>10.4}  {:>10.4}  {:>12.4}", 0, avg_loss, avg_val_loss, avg_val_ppl)?;
+                
         previous_loss = Some(avg_loss);
         
         // Federated training rounds (now with initial params)
@@ -291,12 +339,10 @@ impl Customer {
                 args.rounds,
                 &dvm_pubkeys,
                 &splits,
-                &args.dataset,
-                &args.model,
-                args.epochs,
-                args.batch_size,
+                &algo_config,
+                epochs,
                 current_params.clone(),
-                current_params_hash.clone(),  // 🔐 Pass hash for verification
+                current_params_hash.clone(),
             ).await?;
             
             println!("\n📥 Received {} results", round_results.len());
@@ -341,7 +387,8 @@ impl Customer {
             }
             
             // Aggregate using FedAvg
-            println!("\n⚙️  Aggregating with FedAvg...");
+            let algo = std::env::var("ALGORITHM").unwrap_or_else(|_| "fedavg".to_string());
+            println!("\n⚙️  Aggregating with {}...", algo.to_uppercase());
             println!("  Round {} - Aggregating results from {} DVMs:", round, valid_results.len());
             for (i, result) in valid_results.iter().enumerate() {
                 println!("    DVM {}: loss={:.4}, accuracy={:.2}%, samples={}", 
@@ -354,21 +401,25 @@ impl Customer {
                 }
             }
             
-            let aggregated_params = self.aggregator.aggregate(&valid_results, &self.storage).await?;
+            let aggregated_params = self.aggregator.aggregate(
+                &valid_results, &self.storage,
+                current_params.clone(),
+                current_v_t.clone(),   // ← pass momentum state
+            ).await?;
             
             // Upload aggregated model to storage for next round
             let next_round_params = if round < args.rounds {
                 // Not the last round - upload for DVMs to use
                 println!("\n📤 Uploading aggregated model for next round...");
                 
-                if let Some(ref base64_data) = aggregated_params.params_base64 {
+                if let Some(ref base64_data) = aggregated_params.theta_global.params_base64 {
                     // Decode base64 to bytes
                     let model_bytes = base64::engine::general_purpose::STANDARD.decode(base64_data)?;
                     
                     // Upload to storage
                     let upload_result = self.storage.upload_model(
                         &model_bytes,
-                        &aggregated_params.params_hash,
+                        &aggregated_params.theta_global.params_hash,
                     ).await?;
                     
                     println!("  ✓ Uploaded to: {}", upload_result.url);
@@ -377,27 +428,27 @@ impl Customer {
                     Some(upload_result.url)
                 } else {
                     // Already a URL
-                    aggregated_params.params_url.clone()
+                    aggregated_params.theta_global.params_url.clone()
                 }
             } else {
                 // Last round - save final model
                 println!("\n💾 Saving final aggregated model...");
                 
-                if let Some(ref base64_data) = aggregated_params.params_base64 {
+                if let Some(ref base64_data) = aggregated_params.theta_global.params_base64 {
                     // Decode base64 to bytes
                     let model_bytes = base64::engine::general_purpose::STANDARD.decode(base64_data)?;
                     
                     // Upload to storage
                     let upload_result = self.storage.upload_model(
                         &model_bytes,
-                        &aggregated_params.params_hash,
+                        &aggregated_params.theta_global.params_hash,
                     ).await?;
                     
                     println!("  ✓ Final model saved to: {}", upload_result.url);
                     Some(upload_result.url)
                 } else {
                     // Already a URL
-                    aggregated_params.params_url.clone()
+                    aggregated_params.theta_global.params_url.clone()
                 }
             };
             
@@ -410,19 +461,39 @@ impl Customer {
                 .map(|r| r.metrics.final_accuracy)
                 .sum::<f64>() / valid_results.len() as f64;
             
+            let avg_val_loss: f64 = valid_results.iter()
+                .map(|r| r.metrics.val_loss)
+                .sum::<f64>() / valid_results.len() as f64;
+            let avg_val_ppl = avg_val_loss.exp();
+
             println!("\n📊 Round {} Results:", round);
-            println!("  Average Loss:     {:.4}", avg_loss);
-            println!("  Average Accuracy: {:.2}%", avg_accuracy);
-            
+            println!("  Average Train Loss:  {:.4}", avg_loss);
+            println!("  Average Val Loss:    {:.4}", avg_val_loss);
+            println!("  Average Val PPL:     {:.4}", avg_val_ppl);
+
             if let Some(prev_loss) = previous_loss {
                 let improvement = ((prev_loss - avg_loss) / prev_loss) * 100.0;
-                println!("  Improvement:      {:.2}%", improvement);
+                println!("  Improvement:        {:.2}%", improvement);
             }
+
+            writeln!(log_file, "  {:>6}  {:>10.4}  {:>10.4}  {:>12.4}", round, avg_loss, avg_val_loss, avg_val_ppl)?;
             
             // Update for next round
             current_params = next_round_params.clone();
-            current_params_hash = Some(aggregated_params.params_hash.clone());  // 🔐 Update hash!
-            println!("  🔐 Stored hash for round {}: {}", round + 1, aggregated_params.params_hash);
+            current_params_hash = Some(aggregated_params.theta_global.params_hash.clone());  // 🔐 Update hash!
+            // Upload v_t momentum state for next round (DiLoCo only)
+            if let Some(ref vt_params) = aggregated_params.v_t {
+                if let Some(ref vt_b64) = vt_params.params_base64 {
+                    let vt_bytes = base64::engine::general_purpose::STANDARD.decode(vt_b64)?;
+                    let vt_upload = self.storage.upload_model(
+                        &vt_bytes,
+                        &vt_params.params_hash,
+                    ).await?;
+                    current_v_t = Some(vt_upload.url.clone());
+                    println!("  📦 Momentum state v_t uploaded: {}", vt_upload.url);
+                }
+            }
+            println!("  🔐 Stored hash for round {}: {}", round + 1, aggregated_params.theta_global.params_hash);
             previous_loss = Some(avg_loss);
         }
         
@@ -461,12 +532,10 @@ impl Customer {
         total_rounds: u32,
         dvm_pubkeys: &[PublicKey],
         splits: &[DataSplit],
-        dataset: &str,
-        model: &str,
+        algo_config: &AlgorithmConfig,
         epochs: u32,
-        batch_size: u32,
         current_params: Option<String>,
-        current_params_hash: Option<String>,  // 🔐 NEW: Hash for verification
+        current_params_hash: Option<String>,
     ) -> Result<Vec<JobResult>> {
         let job_id = Uuid::new_v4().to_string();
         
@@ -476,13 +545,11 @@ impl Customer {
         let mut request_ids = HashMap::new();
         
         for (i, (pubkey, split)) in dvm_pubkeys.iter().zip(splits.iter()).enumerate() {
-            let mut job_request = JobRequest::new(
+            let mut job_request = JobRequest::from_config(
                 job_id.clone(),
-                dataset.to_string(),
+                algo_config,
                 split.clone(),
-                model.to_string(),
                 epochs,
-                batch_size,
                 pubkey.to_string(),
                 round,
                 total_rounds,
@@ -516,8 +583,8 @@ impl Customer {
         
         // Wait for results
         println!("\n⏳ Waiting for JobResults...");
-        println!("   (Training can take 5-10 minutes per DVM)");
-        let timeout = Duration::from_secs(1800); // 30 minutes
+        println!("   (Training can take 15-30 minutes per DVM)");
+        let timeout = Duration::from_secs(7200); // 120 minutes
         let start = std::time::Instant::now();
         
         let mut results = Vec::new();

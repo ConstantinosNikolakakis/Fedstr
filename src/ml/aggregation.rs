@@ -6,6 +6,14 @@ use sha2::Digest;
 
 use crate::protocol::{JobResult, ModelParams};
 
+
+/// For DiLoCo, includes the momentum state v_t to persist across rounds.
+/// For FedAvg, v_t is always None.
+pub struct AggregateResult {
+    pub theta_global: ModelParams,
+    pub v_t: Option<ModelParams>,  // DiLoCo momentum state
+}
+
 /// FedAvg Aggregator
 /// 
 /// Implements Federated Averaging (McMahan et al., 2017)
@@ -35,10 +43,12 @@ impl FedAvgAggregator {
     /// # Returns
     /// Aggregated model parameters (always embedded after aggregation)
     pub async fn aggregate(
-        &self, 
+        &self,
         job_results: &[JobResult],
         storage: &crate::storage::ModelStorage,
-    ) -> Result<ModelParams> {
+        theta_global: Option<String>,
+        v_t: Option<String>,       
+    ) -> Result<AggregateResult> {
         if job_results.is_empty() {
             return Err(eyre!("Cannot aggregate empty results"));
         }
@@ -93,33 +103,74 @@ impl FedAvgAggregator {
         // If only one result, just return it
         if model_params_base64.len() == 1 {
             println!("  Only one model, no aggregation needed");
-            return Ok(ModelParams::from_base64(
-                model_params_base64[0].clone(),
-                job_results[0].model_params.params_hash.clone(),
-                job_results[0].model_params.size_bytes,
-            ));
+            return Ok(AggregateResult {
+              theta_global: ModelParams::from_base64(
+                  model_params_base64[0].clone(),
+                  job_results[0].model_params.params_hash.clone(),
+                  job_results[0].model_params.size_bytes,
+              ),
+              v_t: None,
+            });
         }
         
         // Perform weighted averaging in Python
-        println!("  Running FedAvg on {} models...", model_params_base64.len());
-        let aggregated_base64 = Python::with_gil(|py| {
-            self.aggregate_python(py, &model_params_base64, &sample_counts)
+        // For DiLoCo: resolve θ_global to base64
+        // current_params is a URL — download and encode it
+        let algorithm = std::env::var("ALGORITHM")
+            .unwrap_or_else(|_| "fedavg".to_string());
+        let theta_global_b64 = match (&theta_global, algorithm.as_str()) {
+            (Some(url), "diloco") => {
+                println!("  📥 Downloading θ_global for DiLoCo outer step: {}", url);
+                let bytes = storage.download_model(url).await?;
+                println!("     ✓ Downloaded θ_global ({} bytes)", bytes.len());
+                Some(base64.encode(&bytes))
+            },
+            _ => None,
+        };
+
+        let v_t_b64 = match (&v_t, algorithm.as_str()) {
+            (Some(url), "diloco") => {
+                println!("  📥 Downloading v_t momentum state: {}", url);
+                let bytes = storage.download_model(url).await?;
+                println!("     ✓ Downloaded v_t ({} bytes)", bytes.len());
+                Some(base64.encode(&bytes))
+            },
+            _ => None,
+        };
+
+        println!("  Running {} aggregation on {} models...", algorithm, model_params_base64.len());
+        let aggregated_json = Python::with_gil(|py| {
+            self.aggregate_python(py, &model_params_base64, &sample_counts, &theta_global_b64, &v_t_b64)
         })?;
         
-        // Calculate hash of aggregated model
-        let aggregated_bytes = base64.decode(&aggregated_base64)?;
+        // Parse JSON response — both FedAvg and DiLoCo return JSON now
+        let parsed: serde_json::Value = serde_json::from_str(&aggregated_json)
+            .map_err(|e| eyre!("Failed to parse aggregate JSON: {}", e))?;
+
+        let theta_b64 = parsed["theta_global"].as_str()
+            .ok_or_else(|| eyre!("Missing theta_global in aggregate result"))?
+            .to_string();
+
+        let aggregated_bytes = base64.decode(&theta_b64)?;
         let mut hasher = sha2::Sha256::new();
         hasher.update(&aggregated_bytes);
-        let hash = hasher.finalize();
-        let hash_hex = format!("{:x}", hash);
-        
+        let hash_hex = format!("{:x}", hasher.finalize());
         println!("  ✓ Aggregation complete ({}KB)", aggregated_bytes.len() / 1024);
-        
-        Ok(ModelParams::from_base64(
-            aggregated_base64,
-            hash_hex,
-            aggregated_bytes.len(),
-        ))
+
+        let theta_global_out = ModelParams::from_base64(theta_b64, hash_hex, aggregated_bytes.len());
+
+        // Extract v_t if present (DiLoCo only)
+        let v_t_out = if let Some(vt_str) = parsed["v_t"].as_str() {
+            let vt_bytes = base64.decode(vt_str)?;
+            let mut h = sha2::Sha256::new();
+            h.update(&vt_bytes);
+            let vt_hash = format!("{:x}", h.finalize());
+            Some(ModelParams::from_base64(vt_str.to_string(), vt_hash, vt_bytes.len()))
+        } else {
+            None
+        };
+
+        Ok(AggregateResult { theta_global: theta_global_out, v_t: v_t_out })
     }
     
     /// Python implementation of weighted parameter averaging
@@ -128,76 +179,38 @@ impl FedAvgAggregator {
         py: Python,
         model_params: &[String],
         sample_counts: &[usize],
+        theta_global: &Option<String>,
+        v_t: &Option<String>,      
     ) -> Result<String> {
-        // Add python directory to path
+        // Dispatch to the correct algorithm's aggregate.py
+        let algorithm = std::env::var("ALGORITHM")
+            .unwrap_or_else(|_| "fedavg".to_string());
+        let script_path = format!("/opt/fedstr/algorithms/{}/aggregate.py", algorithm);
+        let code = std::fs::read_to_string(&script_path)
+            .map_err(|e| eyre!("Failed to read {}: {}", script_path, e))?;
+
+        // Add algorithm directory to Python path
         let sys = py.import("sys")?;
         let path = sys.getattr("path")?;
-        path.call_method1("insert", (0, "python"))?;
-        
-        // Create Python aggregation script inline
-        let code = r#"
-import torch
-import io
-import base64
+        let algo_path = format!("/opt/fedstr/algorithms/{}", algorithm);
+        path.call_method1("insert", (0, algo_path))?;
 
-def aggregate_models(model_params_b64_list, sample_counts):
-    """
-    Weighted averaging of PyTorch model parameters.
-    
-    Args:
-        model_params_b64_list: List of base64-encoded model state dicts
-        sample_counts: List of sample counts for each model
-    
-    Returns:
-        Base64-encoded aggregated model
-    """
-    # Decode all models
-    import torch
-    import io
-    import base64
-    models = []
-    for params_b64 in model_params_b64_list:
-        params_bytes = base64.b64decode(params_b64)
-        buffer = io.BytesIO(params_bytes)
-        state_dict = torch.load(buffer, weights_only=True, map_location='cpu')
-        models.append(state_dict)
-    
-    # Calculate total samples for weighted averaging
-    total_samples = sum(sample_counts)
-    weights = [count / total_samples for count in sample_counts]
-    
-    # Initialize aggregated state dict with first model structure
-    aggregated = {}
-    for key in models[0].keys():
-        aggregated[key] = torch.zeros_like(models[0][key])
-    
-    # Weighted averaging
-    for model, weight in zip(models, weights):
-        for key in model.keys():
-            aggregated[key] += weight * model[key]
-    
-    # Serialize aggregated model
-    buffer = io.BytesIO()
-    torch.save(aggregated, buffer)
-    aggregated_bytes = buffer.getvalue()
-    
-    # Encode to base64 (no compression needed)
-    return base64.b64encode(aggregated_bytes).decode('utf-8')
-"#;
-        
-        // Execute the code
-        // Get the aggregate_models function
+        // Load and execute the aggregation script
         let locals = PyDict::new(py);
-        py.run(code, None, Some(locals))?;
+        py.run(&code, None, Some(locals))?;
         let aggregate_fn = locals.get_item("aggregate_models")
             .ok_or_else(|| eyre!("Failed to get aggregate_models function"))?;
         
         // Convert Rust data to Python
         let py_params = PyList::new(py, model_params);
         let py_counts = PyList::new(py, sample_counts);
-        
-        // Call aggregation function
-        let result = aggregate_fn.call1((py_params, py_counts))?;
+
+        // Call aggregation function — pass theta_global for DiLoCo, None for FedAvg
+        let result = match (theta_global, v_t) {
+        (Some(tg), Some(vt)) => aggregate_fn.call1((py_params, py_counts, tg.as_str(), vt.as_str()))?,
+        (Some(tg), None)     => aggregate_fn.call1((py_params, py_counts, tg.as_str()))?,
+        _                    => aggregate_fn.call1((py_params, py_counts))?,
+        };
         let aggregated_base64: String = result.extract()?;
         
         Ok(aggregated_base64)
@@ -221,7 +234,7 @@ mod tests {
             100,
         );
         
-        let metrics = TrainingMetrics::new(0.5, 0.9, vec![0.5], vec![0.9], 1);
+        let metrics = TrainingMetrics::new(0.5, 0.9, vec![0.5], vec![0.9], 1, 0.5, 1.65);
         
         let result = JobResult::new(
             "req1".to_string(),
@@ -236,6 +249,6 @@ mod tests {
         let aggregated = aggregator.aggregate(&[result]).unwrap();
         
         // Single model should return itself
-        assert_eq!(aggregated.params_base64, model_params.params_base64);
+        assert_eq!(aggregated.theta_global.params_base64, model_params.params_base64);
     }
 }

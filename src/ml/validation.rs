@@ -200,6 +200,8 @@ mod tests {
             vec![loss],
             vec![accuracy],
             1,
+            loss,           // val_loss = same as train loss for tests
+            loss.exp(),     // val_perplexity
         );
         
         let model_params = ModelParams::from_base64(

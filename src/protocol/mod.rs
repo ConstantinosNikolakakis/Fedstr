@@ -11,7 +11,7 @@ pub mod job_result;
 pub mod job_feedback;
 pub mod payments;
 
-pub use job_request::{JobRequest, DataSplit};
+pub use job_request::{JobRequest, DataSplit, AlgorithmConfig};
 pub use job_result::{JobResult, ModelParams, TrainingMetrics};
 pub use job_feedback::{JobFeedback, JobStatus, PartialMetrics};
 pub use payments::{PaymentRequest, PaymentReceipt};

@@ -1,0 +1,32 @@
+# DiLoCo Algorithm Configuration
+# Distributed Low-Communication Training (Douillard et al., 2023)
+algorithm: diloco
+model: nanogpt
+
+# Model architecture (nanoGPT character-level)
+# CPU-friendly config for local testing (~1.5M params)
+n_layer: 4
+n_head: 4
+n_embd: 128
+block_size: 64
+dropout: 0.0
+bias: false
+
+# Dataset
+dataset: shakespeare
+vocab_size: 65
+
+# Inner optimization (AdamW) — H steps per outer round
+# CPU testing: 100 steps ~5-10 min per DVM
+# GPU (Lambda): 500 steps as per DiLoCo paper
+inner_steps: 100
+batch_size: 32
+lr_inner: 0.001
+weight_decay: 0.1
+grad_clip: 1.0
+
+# Outer optimization (Nesterov momentum)
+# Values from DiLoCo paper Table 5
+lr_outer: 0.7
+momentum: 0.9
+nesterov: true

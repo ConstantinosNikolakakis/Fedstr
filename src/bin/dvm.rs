@@ -232,14 +232,22 @@ impl ServiceProvider {
         };
         
         println!("Job ID:       {}", job_request.job_id);
-        println!("Dataset:      {}", job_request.dataset);
-        println!("Model:        {}", job_request.model_type);
-        println!("Data range:   {} - {}", 
-            job_request.data_split.start_idx,
-            job_request.data_split.end_idx);
-        println!("Round:        {}/{}", 
-            job_request.round,
-            job_request.total_rounds);
+        println!("Round:        {}/{}", job_request.round, job_request.total_rounds);
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("Training Configuration (from customer):");
+        println!("  Algorithm:    {}", job_request.algorithm);
+        println!("  Dataset:      {}", job_request.dataset);
+        println!("  Model:        {}", job_request.model_type);
+        let start_pct = job_request.data_split.start_idx as f64 / job_request.data_split.total_size as f64 * 100.0;
+        let end_pct = job_request.data_split.end_idx as f64 / job_request.data_split.total_size as f64 * 100.0;
+        println!("  Data shard:   {:.0}% - {:.0}% of dataset", start_pct, end_pct);
+        println!("  Inner steps:  {}", job_request.epochs);
+        println!("  Batch size:   {}", job_request.batch_size);
+        println!("  lr_inner:     {}", job_request.lr_inner);
+        println!("  n_layer:      {}", job_request.n_layer);
+        println!("  n_embd:       {}", job_request.n_embd);
+        println!("  block_size:   {}", job_request.block_size);
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         
         // Send payment request (dummy for Phase 1)
         println!("\n₿ Sending payment request...");
@@ -289,21 +297,26 @@ impl ServiceProvider {
         // Perform training (no intermediate feedback to avoid rate-limiting)
         println!("\n⚙️  Starting training (this will take 5-10 minutes)...");
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        
+
+        // Pass round info to Python training script for logging
+        //std::env::set_var("CURRENT_ROUND", job_request.round.to_string());
+
         let training_result = self.trainer.train_tiny_model(
+            &job_request.algorithm,
             &job_request.dataset,
             job_request.data_split.start_idx,
             job_request.data_split.end_idx,
             job_request.epochs,
             job_request.batch_size,
             initial_params_base64,
+            job_request.round,
         )?;
         
-        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         println!("✓ Training completed!");
-        println!("  Final Loss:     {:.4}", training_result.metrics.final_loss);
-        println!("  Final Accuracy: {:.2}%", training_result.metrics.final_accuracy);
-        println!("  Samples:        {}", training_result.training_samples);
+        println!("  Final Train Loss:  {:.4}", training_result.metrics.final_loss);
+        println!("  Val Loss:          {:.4}", training_result.metrics.val_loss);
+        println!("  Val Perplexity:    {:.4}", training_result.metrics.val_perplexity);
+        println!("  Samples:           {}", training_result.training_samples);
         
         // Check if we should use external storage (model > 50KB)
         let use_external_storage = training_result.model_params.size_bytes > 50_000;

@@ -1,246 +1,135 @@
-# FEDSTR — Docker Deployment
+# FEDSTR — DiLoCo + NanoGPT Branch
 
-> **You are on the `docker` branch** — one-command setup with Docker Compose, relay-based DVM discovery, and remote/local storage support.
->
-> For the original native Rust/Python setup, see the [`main` branch](../../tree/main).
+**Branch:** `feature/diloco-nanogpt`  
+**Base:** `docker` branch  
+**Status:** Active development — not yet merged to main
 
-**Paper:** [A Decentralized Marketplace for Federated Learning and LLM Training on the NOSTR Protocol](https://arxiv.org/abs/2404.15834)
-
----
-
-## What This Branch Adds
-
-Built on top of the proof-of-concept in `main`, this branch adds:
-
-- **One-command setup** via `setup.sh` — generates DVM keypairs, configures storage and relay, writes `.env`
-- **Docker Compose orchestration** — customer + DVMs + optional local storage all in one command
-- **Relay-based DVM discovery** — customer finds DVMs automatically via kind 31990 events (NIP-89), no manual pubkey passing
-- **Remote storage support** — models uploaded to `storage.knikolakakis.com` between rounds
-- **Persistent DVM identities** — stable keypairs via `--keypair-hex`, DVMs survive restarts with the same NOSTR identity
+This branch extends FEDSTR with the DiLoCo algorithm (Douillard et al., 2023) and a
+nanoGPT-based language model trained on the Tiny Shakespeare dataset.
 
 ---
 
-## Quick Start
+## What's new in this branch
 
-### Prerequisites
+| Feature | Description |
+|---------|-------------|
+| **DiLoCo algorithm** | AdamW inner optimizer + Nesterov momentum outer step |
+| **Persistent momentum** | `v_t` state uploaded to storage and reused across outer rounds |
+| **nanoGPT model** | 4L 4H 128d transformer, ~1.5M params, character-level |
+| **Shakespeare dataset** | Tiny Shakespeare (~1MB), split across DVMs |
+| **JobRequest carries full config** | Algorithm, model arch, hyperparams — DVMs need no env vars |
+| **AlgorithmConfig** | `algorithms/{algo}/config.yaml` is single source of truth |
+| **Training logs** | Per-step ML logs (`logs/dvm_N_training.log`) |
+| **Protocol logs** | Full protocol output (`logs/dvm_N_protocol.log`, `logs/customer_protocol.log`) |
+| **Three setup scripts** | `setup_deploy_all.sh`, `setup_customer.sh`, `setup_dvm.sh` |
 
-- [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/install/) v2+
-- Python 3 (for `setup.sh` keypair generation)
-- Git
+---
 
-### 1. Clone and run setup
+## Quick Start (all-in-one, single machine)
 
 ```bash
-git clone -b docker https://github.com/ConstantinosNikolakakis/Fedstr.git
+git clone -b feature/diloco-nanogpt https://github.com/ConstantinosNikolakakis/Fedstr.git
 cd Fedstr
-chmod +x setup.sh
-./setup.sh
-```
 
-The setup script will:
-1. Generate 4 fresh DVM keypairs
-2. Ask you to choose storage backend (local or remote)
-3. Ask you to choose a NOSTR relay
-4. Configure FL parameters (DVMs, rounds, epochs)
-5. Write a ready-to-use `.env` file
-6. Print the exact command to run
+# Prepare Shakespeare dataset (once)
+python3 algorithms/diloco/prepare_data.py
 
-### 2. Run
-
-The setup script prints your exact command. It will be one of:
-
-```bash
-# 2 DVMs + local storage (fully self-contained)
-COMPOSE_PROFILES=local docker compose up --build
-
-# 2 DVMs + remote storage
+# Configure and run
+./setup_deploy_all.sh
 docker compose up --build
-
-# 3 DVMs + local storage
-COMPOSE_PROFILES=local,dvm3 docker compose up --build
-
-# 4 DVMs + local storage
-COMPOSE_PROFILES=local,dvm4 docker compose up --build
 ```
 
-### 3. Watch it run
+---
+
+## Setup Scripts
+
+### `setup_deploy_all.sh` — All-in-one (customer + DVMs on same machine)
+Best for: local testing, paper reviewers, single-machine demos.
 
 ```bash
-# All logs together
-docker compose logs -f
-
-# Per service
-docker compose logs -f customer
-docker compose logs -f dvm-0
-docker compose logs -f dvm-1
+./setup_deploy_all.sh
+docker compose up --build
 ```
 
-### 4. Clean up
+### `setup_customer.sh` — Customer only
+Best for: distributed deployment where DVMs run on separate machines.
 
 ```bash
-docker compose down -v   # stops containers and removes volumes
+./setup_customer.sh
+docker compose up customer --build
 ```
 
----
-
-## What Happens When You Run It
-
-```
-t=0s    DVMs start, connect to relay, publish kind 31990 (capabilities)
-t=30s   Customer starts, polls relay for kind 31990 events
-t=30s   Customer discovers DVMs automatically (no --dvms flag needed)
-t=31s   Customer publishes kind 8000 JobRequests to each DVM
-t=31s   DVMs receive jobs, send payment requests (dummy), start training
-t=~1m   DVMs complete training, upload models to storage server
-t=~1m   DVMs publish kind 6000 JobResults with model URLs + SHA-256 hashes
-t=~1m   Customer downloads models, verifies hashes, runs FedAvg aggregation
-t=~1m   Customer uploads aggregated model, starts next round
-        ... repeats for N rounds ...
-t=done  Customer prints final accuracy, exits with code 0
-```
-
-
----
-
-## Architecture
-
-```
-                    wss://relay.knikolakakis.com
-                           ↑         ↓
-              ┌────────────┴─────────┴────────────┐
-              │         NOSTR events               │
-              │  kind 31990  kind 8000  kind 6000  │
-              └────────────┬─────────┬────────────┘
-                           │         │
-              ┌────────────┘         └────────────┐
-              ▼                                   ▼
-      ┌───────────────┐                  ┌────────────────┐
-      │   customer    │                  │  dvm-0 / dvm-1 │
-      │               │                  │  dvm-2 / dvm-3 │
-      │ - discovers   │                  │                │
-      │   DVMs        │                  │ - trains model │
-      │ - splits data │                  │ - uploads      │
-      │ - validates   │                  │ - publishes    │
-      │ - aggregates  │                  │   result       │
-      └───────┬───────┘                  └───────┬────────┘
-              │                                  │
-              └──────────────────────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │  storage server     │
-                    │                     │
-                    │  local: :8000       │
-                    │  remote: storage    │
-                    │  .knikolakakis.com  │
-                    └─────────────────────┘
-```
-
----
-
-## Configuration
-
-All configuration lives in `.env` (generated by `setup.sh`).
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NOSTR_RELAY` | `wss://relay.knikolakakis.com` | Relay for all NOSTR events |
-| `STORAGE_URL` | `http://storage:8000` | Model storage endpoint |
-| `STORAGE_AUTH_TOKEN` | — | Auth token for remote storage |
-| `DVM_N_NSEC_HEX` | — | 32-byte hex secret key for DVM N |
-| `NUM_DVMS` | `2` | Number of DVMs to use |
-| `ROUNDS` | `3` | Federated learning rounds |
-| `EPOCHS_PER_ROUND` | `3` | Local training epochs per round |
-| `BATCH_SIZE` | `32` | Training batch size |
-| `CUSTOMER_WAIT` | `30` | Seconds before customer starts (lets DVMs announce) |
-| `DISCOVERY_TIMEOUT` | `60` | Seconds to poll relay for DVMs |
-
----
-
-## Storage Options
-
-### Local (default)
-```
-STORAGE_URL=http://storage:8000
-STORAGE_AUTH_TOKEN=
-```
-Start with `COMPOSE_PROFILES=local docker compose up --build`. A storage container runs on your machine — no external dependencies.
-
-### Remote (multi-machine demos)
-```
-STORAGE_URL=https://storage.knikolakakis.com
-STORAGE_AUTH_TOKEN=your_token_here
-```
-Contact **KostisNikolakakis@pm.me** to request a demo token.
-
----
-
-## Scaling DVMs
+### `setup_dvm.sh` — DVM only
+Best for: a machine that will only provide compute.
 
 ```bash
-# 3 DVMs
-# In .env: NUM_DVMS=3
-COMPOSE_PROFILES=dvm3 docker compose up --build
-
-# 4 DVMs
-# In .env: NUM_DVMS=4
-COMPOSE_PROFILES=dvm4 docker compose up --build
-
-# Combine with local storage
-COMPOSE_PROFILES=local,dvm4 docker compose up --build
+./setup_dvm.sh
+docker compose up dvm-0 --build
 ```
 
 ---
 
-## Project Structure
+## Algorithm Directory Structure
 
 ```
-Fedstr/
-├── setup.sh                  ← Run this first
-├── docker-compose.yml        ← Orchestration
-├── Dockerfile                ← Rust + Python build
-├── Dockerfile.storage        ← File server image
-├── .env.example              ← Config template
-├── DOCKER.md                 ← Additional Docker notes
-├── Cargo.toml                ← Rust dependencies
-├── build.rs                  ← PyO3 build config
-├── python/
-│   ├── train_tiny.py         ← PyTorch training (MNIST)
-│   └── requirements.txt      ← Python dependencies
-├── scripts/
-│   └── derive_npubs.sh       ← Derive npubs from nsec keys
-└── src/
-    └── bin/
-        ├── customer.rs       ← Coordinator (Algorithm 1)
-        └── dvm.rs            ← Service provider (Algorithm 4)
+algorithms/
+├── fedavg/
+│   ├── train.py        # SGD inner optimization on MNIST
+│   ├── aggregate.py    # Weighted average outer step
+│   └── config.yaml     # FedAvg hyperparameters
+└── diloco/
+    ├── model.py        # NanoGPT architecture (Karpathy 2022)
+    ├── train.py        # AdamW inner optimization on Shakespeare
+    ├── aggregate.py    # Nesterov momentum outer step + v_t persistence
+    ├── config.yaml     # DiLoCo hyperparameters
+    └── prepare_data.py # Download and tokenize Shakespeare dataset
 ```
 
 ---
 
-## Differences from `main` Branch
+## DiLoCo Implementation
 
-| Feature | `main` | `docker` |
-|---------|--------|----------|
-| Setup | Manual (cargo build, conda) | `./setup.sh` + Docker |
-| DVM discovery | Manual `--dvms npub1...` | Automatic via relay |
-| DVM identity | Ephemeral (new key each run) | Persistent via `--keypair-hex` |
-| Multi-machine | Manual coordination | Same compose |
+Implements Algorithm 1 from Douillard et al. (2023):
+
+- **Inner optimizer**: AdamW (`lr=0.001`, `weight_decay=0.1`)
+- **Outer optimizer**: Nesterov momentum (`lr_outer=0.7`, `momentum=0.9`)
+- **Momentum state** (`v_t`) persisted across outer rounds via storage server
+- **Data sharding**: each DVM trains on a contiguous fraction of Shakespeare
 
 ---
 
-## Citation
+## Architecture: JobRequest as Single Source of Truth
 
-```bibtex
-@article{nikolakakis2024fedstr,
-  title={FEDSTR: Money-In AI-Out -- A Decentralized Marketplace for
-         Federated Learning and LLM Training on the NOSTR Protocol},
-  author={Nikolakakis, Konstantinos E. and Chantzialexiou, George
-          and Kalogerias, Dionysis},
-  year={2024}
-}
+A key architectural change in this branch: **the customer embeds all training
+configuration in the JobRequest**. DVMs need no algorithm-specific environment
+variables — they receive everything needed to execute a training job from the
+job request itself.
+
+```
+Customer reads:           Sends to DVMs via JobRequest:
+  .env (ALGORITHM)    →     algorithm, dataset, model_type
+  config.yaml         →     n_layer, n_head, n_embd, block_size
+                      →     lr_inner, weight_decay, grad_clip
+                      →     epochs (H), batch_size
+                      →     current_model_params (URL + hash)
 ```
 
+This enables true marketplace semantics: DVMs are commodity compute providers
+that can serve any customer without prior configuration.
+
 ---
 
-## License
+## Logs
 
-MIT — see [LICENSE](LICENSE)
+Each run produces 6 log files in `logs/`:
+
+| File | Contents |
+|------|----------|
+| `dvm_0_training.log` | Per-step loss, LR, val PPL for DVM 0 |
+| `dvm_1_training.log` | Per-step loss, LR, val PPL for DVM 1 |
+| `customer_training.log` | Round summaries: train loss, val loss, val PPL |
+| `dvm_0_protocol.log` | Full protocol output for DVM 0 |
+| `dvm_1_protocol.log` | Full protocol output for DVM 1 |
+| `customer_protocol.log` | Full protocol output for customer |
+
+---
