@@ -5,10 +5,10 @@ model: nanogpt
 
 # Model architecture (nanoGPT character-level)
 # CPU-friendly config for local testing (~1.5M params)
-n_layer: 4
-n_head: 4
-n_embd: 128
-block_size: 64
+n_layer: 6
+n_head: 6
+n_embd: 384
+block_size: 256
 dropout: 0.0
 bias: false
 

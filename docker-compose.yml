@@ -26,8 +26,6 @@ services:
     environment:
       RUST_LOG: ${RUST_LOG:-info}
       FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
-      ALGORITHM: ${ALGORITHM:-fedavg}
-      DATASET: ${DATASET:-mnist}
       DVM_ID: "0"
     volumes:
       - model_data:/tmp/fedstr_models
@@ -53,8 +51,6 @@ services:
     environment:
       RUST_LOG: ${RUST_LOG:-info}
       FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
-      ALGORITHM: ${ALGORITHM:-fedavg}
-      DATASET: ${DATASET:-mnist}
       DVM_ID: "1"
     volumes:
       - model_data:/tmp/fedstr_models
@@ -81,8 +77,6 @@ services:
     environment:
       RUST_LOG: ${RUST_LOG:-info}
       FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
-      ALGORITHM: ${ALGORITHM:-fedavg}
-      DATASET: ${DATASET:-mnist}
       DVM_ID: "2"
     volumes:
       - model_data:/tmp/fedstr_models
@@ -109,8 +103,6 @@ services:
     environment:
       RUST_LOG: ${RUST_LOG:-info}
       FEDSTR_AUTH_TOKEN: ${STORAGE_AUTH_TOKEN:-}
-      ALGORITHM: ${ALGORITHM:-fedavg}
-      DATASET: ${DATASET:-mnist}
       DVM_ID: "3"
     volumes:
       - model_data:/tmp/fedstr_models

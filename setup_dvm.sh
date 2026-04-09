@@ -177,6 +177,10 @@ STORAGE_AUTH_TOKEN=${STORAGE_AUTH_TOKEN}
 STORAGE_PORT=8000
 
 # DVM keypairs (hex secret keys — keep secret)
+# Only DVM 0..N-1 are real keys for this machine.
+# The remaining slots are dummy placeholders required by docker-compose.yml
+# to avoid unset variable errors when unused DVM services are not started.
+# TODO: refactor docker-compose.yml to not require all 4 keys unconditionally.
 DVM_0_NSEC_HEX=${NSEC_KEYS[0]}
 DVM_1_NSEC_HEX=${NSEC_KEYS[1]:-$(generate_hex "$PYTHON")}
 DVM_2_NSEC_HEX=${NSEC_KEYS[2]:-$(generate_hex "$PYTHON")}
