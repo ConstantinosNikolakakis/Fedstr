@@ -44,7 +44,7 @@ docker compose up --build
 ## Setup Scripts
 
 ### `setup_deploy_all.sh` — All-in-one (customer + DVMs on same machine)
-Best for: local testing, paper reviewers, single-machine demos.
+Best for: local testing, single-machine demos.
 
 ```bash
 ./setup_deploy_all.sh
@@ -55,6 +55,8 @@ docker compose up --build
 Best for: distributed deployment where DVMs run on separate machines.
 
 ```bash
+git clone -b feature/diloco-nanogpt https://github.com/ConstantinosNikolakakis/Fedstr.git
+cd Fedstr
 ./setup_customer.sh
 docker compose up customer --build
 ```
@@ -63,7 +65,10 @@ docker compose up customer --build
 Best for: a machine that will only provide compute.
 
 ```bash
+git clone -b feature/diloco-nanogpt https://github.com/ConstantinosNikolakakis/Fedstr.git
+cd Fedstr
 ./setup_dvm.sh
+python3 algorithms/diloco/prepare_data.py
 docker compose up dvm-0 --build
 ```
 
